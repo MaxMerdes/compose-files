@@ -1,0 +1,55 @@
+name: ejbca
+
+services:
+  db:
+    image: mariadb:11.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ejbca
+      MYSQL_USER: ejbca
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  ejbca:
+    image: keyfactor/ejbca-ce:9.3.7
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_JDBC_URL: "jdbc:mariadb://db:3306/ejbca?characterEncoding=UTF-8"
+      DATABASE_USER: ejbca
+      DATABASE_PASSWORD: ${DB_PASSWORD}
+      TLS_SETUP_ENABLED: "simple"
+      EJBCA_ADMIN_PASSWORD: ${EJBCA_ADMIN_PASSWORD}
+    volumes:
+      - ejbca_data:/mnt/persistent
+    ports:
+      - "443:8443"   # Admin-UI (mTLS)
+      - "80:8080"    # OCSP / CRL
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "curl", "-fk", "--max-time", "5", "https://localhost:8443/ejbca/publicweb/healthcheck/ejbcahealth"]
+      interval: 60s
+      timeout: 15s
+      retries: 5
+      start_period: 300s
+
+volumes:
+  db_data:
+  ejbca_data:
+
+networks:
+  internal:
+    internal: true
