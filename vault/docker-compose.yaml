@@ -1,0 +1,32 @@
+services:
+  vault:
+    image: hashicorp/vault:1.18
+    container_name: vault
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8200:8200"
+    cap_add:
+      - IPC_LOCK
+    volumes:
+      - vault-data:/vault/data
+      - vault-logs:/vault/logs
+      - ./config/vault.hcl:/vault/config/vault.hcl:ro
+      - ./tls:/vault/tls:ro
+    command: vault server -config=/vault/config/vault.hcl
+    healthcheck:
+      test: ["CMD", "wget", "--no-check-certificate", "-qO-", "https://127.0.0.1:8200/v1/sys/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+volumes:
+  vault-data:
+  vault-logs:
